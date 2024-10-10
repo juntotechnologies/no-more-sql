@@ -38,7 +38,7 @@ class Scripts:
         # Create the instruction for Ollama
         instruction = (
             "You are an expert at writing SQL codes. Based on the user query and the following examples, "
-            f"write the SQL code. ### input: {user_input}\n"
+            f"write the SQL code with no extra explanation. Just the code. ### input: {user_input}\n"
             "**Examples:**\n" + "".join(context) + 
             f"\n### output:"
         )
