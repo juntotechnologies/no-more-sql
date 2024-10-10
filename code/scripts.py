@@ -2,6 +2,7 @@ import logging
 import pandas as pd
 from faiss_indexing_retrieval import FAISSIndex
 import ollama
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -46,15 +47,29 @@ class Scripts:
         logger.info(instruction)
         # Call the Ollama API
         try:
-            response = ollama.chat(model='llama3.1', messages=[{'role': 'user', 'content': instruction}], stream = True)
-            stream = [" ".join(chunk['message']['content']) for chunk in response]
+            response = ollama.chat(model='llama3.1:8b', messages=[{'role': 'user', 'content': instruction}], stream = True)
+            stream = [chunk['message']['content'] for chunk in response]
             text = "".join(stream)
-            print(type(text))
+            
+            # Post-process the text
+            text = self.format_response(text)
+            
             return text
         except Exception as e:
             logger.error(f"Error calling Ollama API: {e}")
             return "Error generating response."
 
-# Example usage
-# script = Scripts()
-# response = script.generate_response("Your SQL query here", previous_messages, top_k)
+    def format_response(self, text):
+        """Format the response text to ensure proper spacing and line breaks."""
+        # Remove extra spaces
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        # Ensure proper spacing after punctuation
+        text = re.sub(r'([.,!?])(\S)', r'\1 \2', text)
+        
+        # Add line breaks for SQL keywords
+        sql_keywords = ['SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN']
+        for keyword in sql_keywords:
+            text = re.sub(rf'\b{keyword}\b', f'\n{keyword}', text, flags=re.IGNORECASE)
+        
+        return text.strip()

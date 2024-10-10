@@ -14,7 +14,7 @@ st.session_state.messages = st.session_state.get("messages", [])
 # Display chat messages from history on app rerun
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        st.write(message["content"])  # Changed to st.write()
 
 # User input
 if user_input := st.chat_input("What is your question?"):
@@ -23,7 +23,7 @@ if user_input := st.chat_input("What is your question?"):
         st.session_state.messages.append({"role": "user", "content": user_input})
 
         with st.chat_message("user"):
-            st.markdown(user_input)
+            st.write(user_input)  # Changed to st.write()
 
         # Get previous messages
         prev_msgs = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
@@ -35,7 +35,15 @@ if user_input := st.chat_input("What is your question?"):
 
         # Display the assistant's response
         with st.chat_message("assistant"):
-            st.markdown(assistant_message)
+            # Option 1: Using st.write()
+            st.write(assistant_message)
+            
+            # Option 2: Using triple backticks
+            # st.markdown(f"```\n{assistant_message}\n```")
+            
+            # Option 3: Using HTML (use cautiously)
+            # st.markdown(f"<pre>{assistant_message}</pre>", unsafe_allow_html=True)
+            
             st.session_state.messages.append({"role": "assistant", "content": assistant_message})
 
     except Exception as e:
