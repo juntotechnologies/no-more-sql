@@ -31,7 +31,7 @@ if user_input := st.chat_input("What is your question?"):
         # Display a loading spinner while generating a response
         with st.spinner("Generating response..."):
             # Generate response using the Scripts instance
-            assistant_message = faiss_handler.generate_response(user_input, prev_msgs, k=2)  # Adjust k as needed
+            assistant_message = faiss_handler.generate_response(user_input, prev_msgs)  # Adjust k as needed
 
         # Display the assistant's response
         with st.chat_message("assistant"):

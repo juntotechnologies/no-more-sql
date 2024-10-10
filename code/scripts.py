@@ -25,12 +25,12 @@ class Scripts:
             logger.error(f"Failed to load sentences: {e}")
             return [], []
 
-    def generate_response(self, user_input, prev_messages, k):
+    def generate_response(self, user_input, prev_messages):
         """Generate a SQL response based on user input and previous messages."""
         logger.info("Generating response")
         
         # Retrieve context from the FAISS index
-        context = self.faiss_index.retrieve_top_k(user_input, k=2)
+        context = self.faiss_index.retrieve_top_k(user_input)
         
         # Format previous messages
         formatted_prev_msgs = "\n".join(f"{msg['role']}: {msg['content']}" for msg in prev_messages)
@@ -47,7 +47,7 @@ class Scripts:
         logger.info(instruction)
         # Call the Ollama API
         try:
-            response = ollama.chat(model='llama3.1:8b', messages=[{'role': 'user', 'content': instruction}], stream = True)
+            response = ollama.chat(model='llama3.1', messages=[{'role': 'user', 'content': instruction}], stream = True)
             stream = [chunk['message']['content'] for chunk in response]
             text = "".join(stream)
             
@@ -68,8 +68,20 @@ class Scripts:
         text = re.sub(r'([.,!?])(\S)', r'\1 \2', text)
         
         # Add line breaks for SQL keywords
-        sql_keywords = ['SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN']
+        sql_keywords = [
+            'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 
+            'HAVING', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN'
+        ]
+        
         for keyword in sql_keywords:
             text = re.sub(rf'\b{keyword}\b', f'\n{keyword}', text, flags=re.IGNORECASE)
+
+        # Format the IN clause with indentation
+        text = re.sub(r'IN \(\s*([^()]*?)\s*\)', 
+                    lambda m: f'IN (\n  {m.group(1).replace(", ", ",\n  ")}\n)', text)
+
+        # Add additional formatting for the overall response
+        text = re.sub(r'SQL Query:', '', text)
+        text = text.replace('This SQL code will return', '\n-- This SQL code will return')
         
         return text.strip()

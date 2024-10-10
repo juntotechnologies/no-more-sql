@@ -55,7 +55,7 @@ class FAISSIndex:
         except Exception as e:
             print(f"An error occurred while creating the index: {e}")
 
-    def retrieve_top_k(self, query, k=5):
+    def retrieve_top_k(self, query, k=1):
         """
         Retrieve top K sentences based on a query.
 
