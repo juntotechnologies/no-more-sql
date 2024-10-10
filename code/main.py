@@ -1,16 +1,15 @@
 import streamlit as st
-from scripts import Scripts  # Import the FAISSHandler class
+from scripts import Scripts  # Import the Scripts class
 
-# Create an instance of FAISSHandler
-scripts_temp = Scripts()
+# Create an instance of Scripts
+faiss_handler = Scripts()
 
 # Title of the app
 st.title("No More SQL")
 st.markdown("*Converts text to SQL codes*")
 
 # Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+st.session_state.messages = st.session_state.get("messages", [])
 
 # Display chat messages from history on app rerun
 for message in st.session_state.messages:
@@ -27,11 +26,12 @@ if user_input := st.chat_input("What is your question?"):
             st.markdown(user_input)
 
         # Get previous messages
-        prev_msgs = [{"role": m["role"], "content": m["content"]}
-                      for m in st.session_state.messages]
+        prev_msgs = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
 
-        # Generate response using the FAISSHandler instance
-        assistant_message = scripts_temp.generate_response(user_input, prev_msgs, k=3)  # Adjust k as needed
+        # Display a loading spinner while generating a response
+        with st.spinner("Generating response..."):
+            # Generate response using the Scripts instance
+            assistant_message = faiss_handler.generate_response(user_input, prev_msgs, k=2)  # Adjust k as needed
 
         # Display the assistant's response
         with st.chat_message("assistant"):
@@ -40,4 +40,5 @@ if user_input := st.chat_input("What is your question?"):
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
-    print("I'm done")
+
+    print("Response generation complete.")
