@@ -1,6 +1,14 @@
 # no-more-sql
 
-### Usage
+
+### RAG Implementation
+
+Use this code to run streamlit dashboard to use RAG-LLM to generate SQL queries
+
+`poetry run streamlit run code/main.py`
+
+
+### Usage (Old, for when we were doing fine-tuning)
 
 1. poetry install
 2. Run `accelerate config` - make sure you select 
