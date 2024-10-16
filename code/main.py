@@ -6,7 +6,7 @@ faiss_handler = Scripts()
 
 # Title of the app
 st.title("No More SQL")
-st.markdown("*Converts text to SQL codes*")
+st.markdown("*Converts text to SQL code*")
 
 # Initialize chat history
 st.session_state.messages = st.session_state.get("messages", [])
