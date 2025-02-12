@@ -91,3 +91,15 @@ text_to_sql_index.faiss
 
 # Logs and temp files
 streamlit.log
+# FAISS index and metadata (may contain PHI embeddings)
+text_to_sql_*.faiss
+text_to_sql_*.pkl
+# Local files needed for app (but not in git)
+data/*
+!data/.gitkeep
+text_to_sql_*.faiss
+text_to_sql_*.pkl
+
+# Sensitive logs
+streamlit.log
+~/.streamlit/
