@@ -46,6 +46,7 @@ When running, the app is accessible at:
 1. CUDA-capable GPU
 2. Python 3.10
 3. Docker with NVIDIA runtime
+4. Create FAISS index on first run (will be generated from your data)
 
 ### Docker Configuration
 1. Root directory: `/data/docker`
