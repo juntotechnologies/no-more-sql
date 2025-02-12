@@ -67,6 +67,26 @@ sudo journalctl -u no-more-sql -f
 sudo systemctl restart no-more-sql
 ```
 
+## Making the App Accessible on a GPU Server
+
+To make the Streamlit app accessible on a GPU server, you need to configure the server to listen on all network interfaces and adjust firewall settings to allow incoming traffic on the specified port.
+
+### Server Configuration
+
+1. **Run Streamlit with Network Access**: Use the following command to start the app, ensuring it listens on all network interfaces:
+
+   ```bash
+   streamlit run code/main.py --server.address=0.0.0.0 --server.port=8504
+   ```
+
+2. **Override Firewall Settings**: Use `iptables` to allow incoming traffic on the port the app is running on:
+
+   ```bash
+   sudo iptables -I INPUT -p tcp --dport 8504 -j ACCEPT
+   ```
+
+   This command inserts a rule to accept TCP traffic on port 8504, which is necessary if a firewall is blocking access by default.
+
 ## Troubleshooting
 
 1. Check service status:
