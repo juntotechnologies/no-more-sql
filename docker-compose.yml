@@ -1,0 +1,17 @@
+version: '3.3'
+
+services:
+  no-more-sql:
+    build: .
+    container_name: no-more-sql
+    network_mode: "host"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    volumes:
+      - ./data:/app/data
+      - ./code:/app/code
+    environment:
+      - STREAMLIT_SERVER_PORT=8508
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+    restart: always

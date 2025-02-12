@@ -1,6 +1,8 @@
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+import os
+import pickle
 
 class FAISSIndex:
     """
@@ -17,22 +19,21 @@ class FAISSIndex:
         self.model = SentenceTransformer(model_path)
         self.index = None
         self.sentences = []
+        self.index_file = 'text_to_sql_index.faiss'
+        self.metadata_file = 'text_to_sql_metadata.pkl'
 
-    def create_index(self, questions, queries, index_file='text_to_sql_index.faiss'):
-        """
-        Create a FAISS index from the given questions and queries.
-
-        Parameters:
-        - questions (list): List of user input text.
-        - queries (list): List of corresponding SQL queries.
-        - index_file (str): Filename for saving the FAISS index. Default is 'text_to_sql_index.faiss'.
-        """
+    def create_index(self, questions, queries):
+        """Create a FAISS index from the given questions and queries."""
         self.questions = questions
         self.queries = queries
         print(questions[0])
         print(len(questions))
 
         try:
+            # Try to load existing index first
+            if self.load_index():
+                return
+
             # Generate embeddings
             questions_embeddings = self.model.encode(self.questions)
             print("Questions Embeddings Shape:", questions_embeddings.shape)
@@ -48,12 +49,49 @@ class FAISSIndex:
             vectors = np.vstack((questions_embeddings.astype(np.float32), queries_embeddings.astype(np.float32)))
             self.index.add(vectors)
 
-            # Optionally write the index to a file
-            faiss.write_index(self.index, index_file)
-            print(f"Index successfully saved to {index_file}")
+            # Save the index and metadata
+            self.save_index()
 
         except Exception as e:
             print(f"An error occurred while creating the index: {e}")
+
+    def save_index(self):
+        """Save the FAISS index and metadata."""
+        try:
+            # Save FAISS index
+            faiss.write_index(self.index, self.index_file)
+
+            # Save metadata (questions and queries)
+            with open(self.metadata_file, 'wb') as f:
+                pickle.dump({
+                    'questions': self.questions,
+                    'queries': self.queries
+                }, f)
+            print(f"Index and metadata successfully saved")
+            return True
+        except Exception as e:
+            print(f"Failed to save index: {e}")
+            return False
+
+    def load_index(self):
+        """Load the FAISS index and metadata if they exist."""
+        try:
+            # Load FAISS index
+            if not os.path.exists(self.index_file) or not os.path.exists(self.metadata_file):
+                return False
+
+            self.index = faiss.read_index(self.index_file)
+
+            # Load metadata
+            with open(self.metadata_file, 'rb') as f:
+                metadata = pickle.load(f)
+                self.questions = metadata['questions']
+                self.queries = metadata['queries']
+            print("Loaded existing index and metadata")
+            return True
+        except Exception as e:
+            print(f"Failed to load index: {e}")
+            return False
 
     def retrieve_top_k(self, query, k=1):
         """
@@ -81,3 +119,12 @@ class FAISSIndex:
                 context.append(f"**Question:** {similar_question}\n**SQL Query:** {similar_sql_query}\n**Distance:** {distance:.4f}\n")
 
         return "\n".join(context)
+
+    def __getstate__(self):
+        """Return state values to be pickled."""
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        """Restore state from the unpickled state values."""
+        self.__dict__.update(state)

@@ -65,3 +65,29 @@ celerybeat.pid
 .pyre/
 .pytype/
 cython_debug/
+
+# FAISS index
+data/faiss_index.pkl
+
+# FAISS index and metadata
+text_to_sql_index.faiss
+text_to_sql_metadata.pkl
+
+# Database
+data/feedback.db
+# Data files that may contain PHI
+data/feedback.db
+data/prompt_sql.csv
+data/train_data.jsonl
+data/val_data.jsonl
+data/faiss_index.pkl
+
+# Generated files
+*.db
+*.csv
+*.jsonl
+*.pkl
+text_to_sql_index.faiss
+
+# Logs and temp files
+streamlit.log

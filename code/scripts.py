@@ -8,12 +8,49 @@ import re
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+ollama.BASE_URL = "http://localhost:11434"  # Make sure this matches your Docker port mapping
+
 class Scripts:
     def __init__(self, model_name='sentence-transformers/all-MiniLM-L6-v2', csv_file='data/prompt_sql.csv'):
         logger.info("Initializing FAISS Index")
         self.faiss_index = FAISSIndex(model_name)
         self.questions, self.queries = self.load_sentences(csv_file)
+        # This will now only create the index if it doesn't exist
         self.faiss_index.create_index(self.questions, self.queries)
+
+    def save_index(self):
+        """Save the FAISS index and related data to disk"""
+        try:
+            import pickle
+            with open(self.index_file, 'wb') as f:
+                pickle.dump({
+                    'questions': self.questions,
+                    'queries': self.queries,
+                    'index': self.faiss_index
+                }, f)
+            logger.info(f"Index saved to {self.index_file}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save index: {e}")
+            return False
+
+    def load_index(self):
+        """Load the FAISS index and related data from disk"""
+        try:
+            import pickle
+            with open(self.index_file, 'rb') as f:
+                data = pickle.load(f)
+                self.questions = data['questions']
+                self.queries = data['queries']
+                self.faiss_index = data['index']
+            logger.info(f"Index loaded from {self.index_file}")
+            return True
+        except FileNotFoundError:
+            logger.info("No existing index found")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to load index: {e}")
+            return False
 
     def load_sentences(self, csv_file):
         """Load questions and queries from a CSV file."""
@@ -28,60 +65,107 @@ class Scripts:
     def generate_response(self, user_input, prev_messages):
         """Generate a SQL response based on user input and previous messages."""
         logger.info("Generating response")
-        
+
         # Retrieve context from the FAISS index
         context = self.faiss_index.retrieve_top_k(user_input)
-        
+
         # Format previous messages
         formatted_prev_msgs = "\n".join(f"{msg['role']}: {msg['content']}" for msg in prev_messages)
-        
+
         # Create the instruction for Ollama
         instruction = (
             "You are an expert at writing SQL code. Based on the user query and the following examples, "
             f"write the SQL code with no extra explanation. Just the code. ### input: {user_input}\n"
-            "**Examples:**\n" + "".join(context) + 
+            "**Examples:**\n" + "".join(context) +
             f"\n### output:"
         )
-        
+
         logger.info("Calling Ollama API")
         logger.info(instruction)
         # Call the Ollama API
         try:
-            response = ollama.chat(model='llama3.1', messages=[{'role': 'user', 'content': instruction}], stream = True)
+            response = ollama.chat(
+                model='llama3.1:70b',
+                messages=[{'role': 'user', 'content': instruction}],
+                stream=True
+            )
             stream = [chunk['message']['content'] for chunk in response]
             text = "".join(stream)
-            
+
             # Post-process the text
             text = self.format_response(text)
-            
+
             return text
         except Exception as e:
             logger.error(f"Error calling Ollama API: {e}")
             return "Error generating response."
 
     def format_response(self, text):
-        """Format the response text to ensure proper spacing and line breaks."""
-        # Remove extra spaces
+        """Format the response text to ensure proper SQL formatting."""
+        # Remove extra spaces and clean up the text
         text = re.sub(r'\s+', ' ', text).strip()
-        
-        # Ensure proper spacing after punctuation
-        text = re.sub(r'([.,!?])(\S)', r'\1 \2', text)
-        
-        # Add line breaks for SQL keywords
-        sql_keywords = [
-            'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 
-            'HAVING', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN'
+
+        # Remove any markdown or extra text that might come from the LLM
+        text = re.sub(r'```sql|```|`', '', text)
+        text = re.sub(r'SQL Query:|Query:|### output:', '', text)
+
+        # List of SQL keywords to capitalize and add newlines before
+        major_keywords = [
+            'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY',
+            'HAVING', 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN',
+            'UNION', 'WITH'
         ]
-        
-        for keyword in sql_keywords:
-            text = re.sub(rf'\b{keyword}\b', f'\n{keyword}', text, flags=re.IGNORECASE)
 
-        # Format the IN clause with indentation
-        text = re.sub(r'IN \(\s*([^()]*?)\s*\)', 
-                    lambda m: f'IN (\n  {m.group(1).replace(", ", ",\n  ")}\n)', text)
+        condition_keywords = ['AND', 'OR']
+        all_keywords = major_keywords + condition_keywords
 
-        # Add additional formatting for the overall response
-        text = re.sub(r'SQL Query:', '', text)
-        text = text.replace('This SQL code will return', '\n-- This SQL code will return')
-        
-        return text.strip()
+        # Capitalize all SQL keywords
+        for keyword in all_keywords:
+            text = re.sub(rf'\b{keyword}\b', keyword, text, flags=re.IGNORECASE)
+
+        # Split into statements (for handling multiple queries)
+        statements = text.split(';')
+        formatted_statements = []
+
+        for statement in statements:
+            if not statement.strip():
+                continue
+
+            # Add newlines and indentation
+            lines = []
+            indent_level = 0
+
+            # Split on major keywords
+            parts = re.split(r'\b(' + '|'.join(all_keywords) + r')\b', statement)
+            for i, part in enumerate(parts):
+                if not part.strip():
+                    continue
+
+                if part in major_keywords:
+                    # Reset indent for major keywords
+                    indent_level = 1
+                    lines.append('\n' + part)
+                elif part in condition_keywords:
+                    # Indent conditions
+                    lines.append('\n' + '    ' * indent_level + part)
+                else:
+                    # Handle the content after keywords
+                    content = part.strip()
+                    if i > 0 and parts[i-1] == 'SELECT':
+                        # Format columns in SELECT clause
+                        columns = [col.strip() for col in content.split(',')]
+                        lines.append('\n    ' + ',\n    '.join(columns))
+                    else:
+                        # Format other content
+                        lines.append(' ' + content)
+
+            formatted_statements.append(''.join(lines).strip())
+
+        # Join statements with semicolons
+        result = ';\n\n'.join(formatted_statements)
+
+        # Final cleanup
+        result = re.sub(r'\s+\n', '\n', result)  # Remove trailing spaces
+        result = re.sub(r'\n\s*\n', '\n', result)  # Remove empty lines
+
+        return result
