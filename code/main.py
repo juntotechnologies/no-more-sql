@@ -1,13 +1,31 @@
 import streamlit as st
 from scripts import Scripts
 from database import Database
+import pandas as pd
 import os
 
 # Initialize database
 db = Database()
 
-# Create an instance of Scripts
-faiss_handler = Scripts()
+# Load the combined CSV file
+combined_csv_path = os.path.join('data', 'combined_prompts_queries.csv')
+df = pd.read_csv(combined_csv_path)
+
+# Extract unique sources
+sources = df['Source'].unique()
+
+# Source selection
+selected_source = st.selectbox(
+    "Select Source for SQL prompts:",
+    sources,
+    index=0  # Default to first source
+)
+
+# Filter data by selected source
+filtered_df = df[df['Source'] == selected_source]
+
+# Create an instance of Scripts with filtered data
+faiss_handler = Scripts(dataframe=filtered_df)
 
 # Title of the app
 st.title("No More SQL")

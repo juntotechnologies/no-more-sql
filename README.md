@@ -95,3 +95,11 @@ nvidia-smi  # Check GPU usage
 - Service runs as user 'porwals'
 - Port 8504 must be accessible
 - Consider implementing authentication
+
+## Deployment with Systemd
+
+The "No More SQL" Streamlit app is deployed as a systemd service on the server. This allows the app to run as a background service, automatically start on boot, and be managed using standard systemd commands.
+
+### Systemd Service File
+
+The service file is located at `/etc/systemd/system/no-more-sql.service`. Below is the configuration used:

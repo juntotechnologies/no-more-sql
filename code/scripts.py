@@ -3,6 +3,7 @@ import pandas as pd
 from faiss_indexing_retrieval import FAISSIndex
 import ollama
 import re
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,12 +12,24 @@ logger = logging.getLogger(__name__)
 ollama.BASE_URL = "http://localhost:11434"  # Make sure this matches your Docker port mapping
 
 class Scripts:
-    def __init__(self, model_name='sentence-transformers/all-MiniLM-L6-v2', csv_file='data/prompt_sql.csv'):
+    def __init__(self, model_name='sentence-transformers/all-MiniLM-L6-v2', dataframe=None):
         logger.info("Initializing FAISS Index")
         self.faiss_index = FAISSIndex(model_name)
-        self.questions, self.queries = self.load_sentences(csv_file)
-        # This will now only create the index if it doesn't exist
-        self.faiss_index.create_index(self.questions, self.queries)
+
+        if dataframe is not None:
+            self.questions = dataframe['Prompt'].tolist()
+            self.queries = dataframe['Query'].tolist()
+            self.index_file = f"data/{dataframe['Source'].iloc[0]}.index"  # Define index file path based on source
+
+            # Check if index already exists
+            if not self.load_index():
+                if not self.questions or not self.queries:
+                    logger.error("No data to create FAISS index. Exiting initialization.")
+                    return
+                self.faiss_index.create_index(self.questions, self.queries)
+                self.save_index()
+        else:
+            logger.error("No DataFrame provided to initialize Scripts.")
 
     def save_index(self):
         """Save the FAISS index and related data to disk"""
@@ -38,29 +51,20 @@ class Scripts:
         """Load the FAISS index and related data from disk"""
         try:
             import pickle
-            with open(self.index_file, 'rb') as f:
-                data = pickle.load(f)
-                self.questions = data['questions']
-                self.queries = data['queries']
-                self.faiss_index = data['index']
-            logger.info(f"Index loaded from {self.index_file}")
-            return True
-        except FileNotFoundError:
-            logger.info("No existing index found")
-            return False
+            if os.path.exists(self.index_file):
+                with open(self.index_file, 'rb') as f:
+                    data = pickle.load(f)
+                    self.questions = data['questions']
+                    self.queries = data['queries']
+                    self.faiss_index = data['index']
+                logger.info(f"Index loaded from {self.index_file}")
+                return True
+            else:
+                logger.info("No existing index found")
+                return False
         except Exception as e:
             logger.error(f"Failed to load index: {e}")
             return False
-
-    def load_sentences(self, csv_file):
-        """Load questions and queries from a CSV file."""
-        try:
-            df = pd.read_csv(csv_file)
-            print(df.head())
-            return df['prompt'].tolist(), df['completion'].tolist()
-        except Exception as e:
-            logger.error(f"Failed to load sentences: {e}")
-            return [], []
 
     def generate_response(self, user_input, prev_messages):
         """Generate a SQL response based on user input and previous messages."""
