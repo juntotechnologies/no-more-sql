@@ -2,6 +2,33 @@
 
 Convert natural language to SQL queries using RAG-powered LLM.
 
+```mermaid
+graph TD
+    subgraph UI
+        A[User]
+        B[Streamlit Dashboard]
+    end
+
+    subgraph Service
+        C[No More SQL Service]
+        D[Query Processor]
+    end
+
+    subgraph Components
+        E[LLM via Ollama]
+        F[FAISS Search]
+        G[SQLite DB]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    D --> F
+    D --> G
+```
+
+
 ## Quick Start
 
 1. Start Ollama container:
@@ -123,3 +150,97 @@ The "No More SQL" Streamlit app is deployed as a systemd service on the server. 
 ### Systemd Service File
 
 The service file is located at `/etc/systemd/system/no-more-sql.service`. Below is the configuration used:
+
+```ini
+[Unit]
+Description=No More SQL Streamlit App
+After=network.target
+
+[Service]
+User=porwals
+WorkingDirectory=/home/porwals/GitHub/projects/no-more-sql
+Environment="PATH=/home/porwals/GitHub/projects/no-more-sql/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/porwals/GitHub/projects/no-more-sql/.venv/bin/streamlit run code/main.py --server.port=8504 --server.address=0.0.0.0
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## System Service Management
+
+### View Deployed Services
+
+1. **List All Services**: View all systemd services on the system:
+   ```bash
+   systemctl list-units --type=service
+   ```
+
+2. **List Running Services**: Show only active services:
+   ```bash
+   systemctl list-units --type=service --state=running
+   ```
+
+3. **View Service Status**: Check status of a specific service:
+   ```bash
+   systemctl status no-more-sql
+   ```
+
+### Deploying a New Service
+
+1. **Create Service File**: Create a new systemd service file in `/etc/systemd/system/`:
+   ```bash
+   sudo nano /etc/systemd/system/your-app-name.service
+   ```
+
+2. **Service File Template**:
+   ```ini
+   [Unit]
+   Description=Your App Description
+   After=network.target
+
+   [Service]
+   User=your_username
+   WorkingDirectory=/path/to/your/app
+   Environment="PATH=/path/to/your/virtualenv/bin:/usr/local/bin:/usr/bin:/bin"
+   ExecStart=/path/to/your/virtualenv/bin/streamlit run code/main.py --server.port=XXXX --server.address=0.0.0.0
+
+   Restart=always
+   RestartSec=5
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+3. **Enable and Start Service**:
+   ```bash
+   sudo systemctl daemon-reload          # Reload systemd manager configuration
+   sudo systemctl enable your-app-name   # Enable service to start on boot
+   sudo systemctl start your-app-name    # Start the service
+   ```
+
+4. **Configure Network Access**:
+   ```bash
+   sudo iptables -I INPUT -p tcp --dport XXXX -j ACCEPT  # Allow traffic on your port
+   ```
+
+### Common Service Management Commands
+
+```bash
+# Basic service control
+sudo systemctl start service-name    # Start a service
+sudo systemctl stop service-name     # Stop a service
+sudo systemctl restart service-name  # Restart a service
+sudo systemctl status service-name   # Check service status
+
+# Service configuration
+sudo systemctl enable service-name   # Enable service on boot
+sudo systemctl disable service-name  # Disable service on boot
+
+# Log viewing
+sudo journalctl -u service-name -f   # View and follow service logs
+```
+
+Note: Replace `your-app-name`, `your_username`, and `XXXX` with your specific values when deploying a new service.
