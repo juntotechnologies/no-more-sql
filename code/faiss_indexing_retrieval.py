@@ -93,7 +93,7 @@ class FAISSIndex:
             print(f"Failed to load index: {e}")
             return False
 
-    def retrieve_top_k(self, query, k=1):
+    def retrieve_top_k(self, query, k=5):
         """
         Retrieve top K sentences based on a query.
 

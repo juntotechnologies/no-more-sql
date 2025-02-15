@@ -173,3 +173,50 @@ class Scripts:
         result = re.sub(r'\n\s*\n', '\n', result)  # Remove empty lines
 
         return result
+
+    def generate_commit_summary(self, weeks=1):
+        """Generate a bulleted summary of commits from the past specified weeks."""
+        logger.info(f"Generating commit summary for past {weeks} weeks")
+
+        # Get git log command output
+        try:
+            from datetime import datetime, timedelta
+            import subprocess
+            
+            # Calculate date for specified weeks ago
+            since_date = (datetime.now() - timedelta(weeks=weeks)).strftime('%Y-%m-%d')
+            
+            # Run git log command
+            git_log = subprocess.check_output(
+                ['git', 'log', f'--since={since_date}', '--pretty=format:%s'],
+                universal_newlines=True
+            )
+            
+            if not git_log.strip():
+                return "No commits found in the specified time period."
+
+            # Create the instruction for Ollama
+            instruction = (
+                "You are a technical writer. Based on the following git commit messages, "
+                "create a concise bulleted summary of the main changes. Group related changes together. "
+                f"Here are the commit messages:\n\n{git_log}"
+            )
+
+            # Call the Ollama API
+            response = ollama.chat(
+                model='llama3.1:70b',
+                messages=[{'role': 'user', 'content': instruction}],
+                stream=True
+            )
+            
+            stream = [chunk['message']['content'] for chunk in response]
+            summary = "".join(stream)
+            
+            return summary.strip()
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error accessing git history: {e}")
+            return "Error accessing git history."
+        except Exception as e:
+            logger.error(f"Error generating commit summary: {e}")
+            return "Error generating summary."
