@@ -12,6 +12,117 @@ services:
       - ./data:/app/data
       - ./code:/app/code
     environment:
-      - STREAMLIT_SERVER_PORT=8508
+      - STREAMLIT_SERVER_PORT=8504
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
     restart: always
+    depends_on:
+      - ollama-gpu0
+      - ollama-gpu1
+      - ollama-gpu2
+      - ollama-gpu3
+      - ollama-gpu4
+      - ollama-gpu5
+
+  ollama-gpu0:
+    image: ollama/ollama:latest
+    container_name: ollama-gpu0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data_0:/root/.ollama
+    restart: always
+
+  ollama-gpu1:
+    image: ollama/ollama:latest
+    container_name: ollama-gpu1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama_data_1:/root/.ollama
+    restart: always
+
+  ollama-gpu2:
+    image: ollama/ollama:latest
+    container_name: ollama-gpu2
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    ports:
+      - "11436:11434"
+    volumes:
+      - ollama_data_2:/root/.ollama
+    restart: always
+
+  ollama-gpu3:
+    image: ollama/ollama:latest
+    container_name: ollama-gpu3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    ports:
+      - "11437:11434"
+    volumes:
+      - ollama_data_3:/root/.ollama
+    restart: always
+
+  ollama-gpu4:
+    image: ollama/ollama:latest
+    container_name: ollama-gpu4
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    ports:
+      - "11438:11434"
+    volumes:
+      - ollama_data_4:/root/.ollama
+    restart: always
+
+  ollama-gpu5:
+    image: ollama/ollama:latest
+    container_name: ollama-gpu5
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    ports:
+      - "11439:11434"
+    volumes:
+      - ollama_data_5:/root/.ollama
+    restart: always
+
+volumes:
+  ollama_data_0:
+  ollama_data_1:
+  ollama_data_2:
+  ollama_data_3:
+  ollama_data_4:
+  ollama_data_5:

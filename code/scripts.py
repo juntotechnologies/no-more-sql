@@ -4,12 +4,21 @@ from faiss_indexing_retrieval import FAISSIndex
 import ollama
 import re
 import os
+import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-ollama.BASE_URL = "http://localhost:11434"  # Make sure this matches your Docker port mapping
+# Set up Ollama container endpoints
+OLLAMA_ENDPOINTS = [
+    "http://localhost:11434",  # ollama-gpu0
+    "http://localhost:11435",  # ollama-gpu1
+    "http://localhost:11436",  # ollama-gpu2
+    "http://localhost:11437",  # ollama-gpu3
+    "http://localhost:11438",  # ollama-gpu4
+    "http://localhost:11439",  # ollama-gpu5
+]
 
 class Scripts:
     def __init__(self, model_name='sentence-transformers/all-MiniLM-L6-v2', dataframe=None):
@@ -88,6 +97,14 @@ class Scripts:
         logger.info(instruction)
         # Call the Ollama API
         try:
+            # Select a random Ollama endpoint for load balancing
+            endpoint = random.choice(OLLAMA_ENDPOINTS)
+            logger.info(f"Using Ollama endpoint: {endpoint}")
+
+            # Temporarily override Ollama base URL
+            original_base_url = ollama.BASE_URL
+            ollama.BASE_URL = endpoint
+
             response = ollama.chat(
                 model='llama3.1:70b',
                 messages=[{'role': 'user', 'content': instruction}],
@@ -96,13 +113,45 @@ class Scripts:
             stream = [chunk['message']['content'] for chunk in response]
             text = "".join(stream)
 
+            # Restore original base URL
+            ollama.BASE_URL = original_base_url
+
             # Post-process the text
             text = self.format_response(text)
 
             return text
         except Exception as e:
-            logger.error(f"Error calling Ollama API: {e}")
-            return "Error generating response."
+            logger.error(f"Error calling Ollama API at {endpoint}: {e}")
+            logger.info("Trying a different endpoint")
+
+            # Try another endpoint if the first one fails
+            try:
+                # Remove failed endpoint temporarily
+                remaining_endpoints = [ep for ep in OLLAMA_ENDPOINTS if ep != endpoint]
+                if remaining_endpoints:
+                    endpoint = random.choice(remaining_endpoints)
+                    logger.info(f"Retrying with Ollama endpoint: {endpoint}")
+
+                    # Set new endpoint
+                    ollama.BASE_URL = endpoint
+
+                    response = ollama.chat(
+                        model='llama3.1:70b',
+                        messages=[{'role': 'user', 'content': instruction}],
+                        stream=True
+                    )
+                    stream = [chunk['message']['content'] for chunk in response]
+                    text = "".join(stream)
+
+                    # Post-process the text
+                    text = self.format_response(text)
+
+                    return text
+                else:
+                    return "All Ollama endpoints are unavailable."
+            except Exception as retry_error:
+                logger.error(f"Error on retry with Ollama API: {retry_error}")
+                return "Error generating response. All Ollama endpoints failed."
 
     def format_response(self, text):
         """Format the response text to ensure proper SQL formatting."""
@@ -182,16 +231,16 @@ class Scripts:
         try:
             from datetime import datetime, timedelta
             import subprocess
-            
+
             # Calculate date for specified weeks ago
             since_date = (datetime.now() - timedelta(weeks=weeks)).strftime('%Y-%m-%d')
-            
+
             # Run git log command
             git_log = subprocess.check_output(
                 ['git', 'log', f'--since={since_date}', '--pretty=format:%s'],
                 universal_newlines=True
             )
-            
+
             if not git_log.strip():
                 return "No commits found in the specified time period."
 
@@ -202,17 +251,59 @@ class Scripts:
                 f"Here are the commit messages:\n\n{git_log}"
             )
 
+            # Select a random Ollama endpoint for load balancing
+            endpoint = random.choice(OLLAMA_ENDPOINTS)
+            logger.info(f"Using Ollama endpoint: {endpoint}")
+
+            # Temporarily override Ollama base URL
+            original_base_url = ollama.BASE_URL
+            ollama.BASE_URL = endpoint
+
             # Call the Ollama API
-            response = ollama.chat(
-                model='llama3.1:70b',
-                messages=[{'role': 'user', 'content': instruction}],
-                stream=True
-            )
-            
-            stream = [chunk['message']['content'] for chunk in response]
-            summary = "".join(stream)
-            
-            return summary.strip()
+            try:
+                response = ollama.chat(
+                    model='llama3.1:70b',
+                    messages=[{'role': 'user', 'content': instruction}],
+                    stream=True
+                )
+
+                stream = [chunk['message']['content'] for chunk in response]
+                summary = "".join(stream)
+
+                # Restore original base URL
+                ollama.BASE_URL = original_base_url
+
+                return summary.strip()
+
+            except Exception as e:
+                logger.error(f"Error calling Ollama API at {endpoint}: {e}")
+                logger.info("Trying a different endpoint")
+
+                # Try another endpoint if the first one fails
+                try:
+                    # Remove failed endpoint temporarily
+                    remaining_endpoints = [ep for ep in OLLAMA_ENDPOINTS if ep != endpoint]
+                    if remaining_endpoints:
+                        endpoint = random.choice(remaining_endpoints)
+                        logger.info(f"Retrying with Ollama endpoint: {endpoint}")
+
+                        # Set new endpoint
+                        ollama.BASE_URL = endpoint
+
+                        response = ollama.chat(
+                            model='llama3.1:70b',
+                            messages=[{'role': 'user', 'content': instruction}],
+                            stream=True
+                        )
+                        stream = [chunk['message']['content'] for chunk in response]
+                        summary = "".join(stream)
+
+                        return summary.strip()
+                    else:
+                        return "All Ollama endpoints are unavailable."
+                except Exception as retry_error:
+                    logger.error(f"Error on retry with Ollama API: {retry_error}")
+                    return "Error generating summary. All Ollama endpoints failed."
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Error accessing git history: {e}")
