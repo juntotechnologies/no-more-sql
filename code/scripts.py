@@ -5,6 +5,14 @@ import ollama
 import re
 import os
 import random
+import subprocess
+import json
+from collections import Counter
+
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,10 +28,57 @@ OLLAMA_ENDPOINTS = [
     "http://localhost:11439",  # ollama-gpu5
 ]
 
+def get_available_models():
+    """Dynamically discover models available in the Ollama containers"""
+    logger.info("Discovering available models from Ollama containers")
+    models = []
+
+    for i in range(6):  # Assuming containers 0-5
+        try:
+            result = subprocess.run(
+                ['docker', 'exec', f'ollama-gpu{i}', 'ollama', 'list'],
+                capture_output=True, text=True, check=True
+            )
+
+            if result.stdout.strip():
+                # Parse the text output
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip() and not line.startswith('NAME'):
+                        # First column is the model name
+                        parts = line.split()
+                        if parts:
+                            model_name = parts[0]
+                            models.append(model_name)
+                            logger.info(f"Found model in ollama-gpu{i}: {model_name}")
+
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to get models from ollama-gpu{i}: {e}")
+
+    # Count which models appear in how many containers
+    model_counts = Counter(models)
+    # Get unique models
+    unique_models = list(model_counts.keys())
+
+    if not unique_models:
+        logger.warning("No models found in any container! Using fallback models list.")
+        return ["llama3.3:70b", "llama3.2:1b", "deepseek-r1:1.5b"]
+
+    # Sort by popularity (most common first) and then alphabetically
+    sorted_models = sorted(unique_models, key=lambda m: (-model_counts[m], m))
+    logger.info(f"Available models across all containers: {sorted_models}")
+    return sorted_models
+
+# Get available models dynamically
+AVAILABLE_MODELS = get_available_models()
+
 class Scripts:
-    def __init__(self, model_name='sentence-transformers/all-MiniLM-L6-v2', dataframe=None):
+    def __init__(self, model_name='sentence-transformers/all-MiniLM-L6-v2', dataframe=None, llm_model=None):
         logger.info("Initializing FAISS Index")
         self.faiss_index = FAISSIndex(model_name)
+
+        # Set default LLM model if not provided
+        self.llm_model = llm_model if llm_model else AVAILABLE_MODELS[0]
+        logger.info(f"Using LLM model: {self.llm_model}")
 
         if dataframe is not None:
             self.questions = dataframe['Prompt'].tolist()
@@ -75,6 +130,24 @@ class Scripts:
             logger.error(f"Failed to load index: {e}")
             return False
 
+    def set_llm_model(self, model_name):
+        """Update the LLM model to use for queries"""
+        # Refresh available models to ensure we have the latest
+        current_models = get_available_models()
+
+        if model_name in current_models:
+            self.llm_model = model_name
+            logger.info(f"Model updated to: {self.llm_model}")
+            return True
+        else:
+            logger.error(f"Requested model {model_name} is not available in any container")
+            # Fall back to first available model
+            if current_models:
+                self.llm_model = current_models[0]
+                logger.warning(f"Falling back to available model: {self.llm_model}")
+                return False
+            return False
+
     def generate_response(self, user_input, prev_messages):
         """Generate a SQL response based on user input and previous messages."""
         logger.info("Generating response")
@@ -94,6 +167,7 @@ class Scripts:
         )
 
         logger.info("Calling Ollama API")
+        logger.info(f"Using model: {self.llm_model}")
         logger.info(instruction)
         # Call the Ollama API
         try:
@@ -106,7 +180,7 @@ class Scripts:
             ollama.BASE_URL = endpoint
 
             response = ollama.chat(
-                model='llama3.1:70b',
+                model=self.llm_model,
                 messages=[{'role': 'user', 'content': instruction}],
                 stream=True
             )
@@ -136,7 +210,7 @@ class Scripts:
                     ollama.BASE_URL = endpoint
 
                     response = ollama.chat(
-                        model='llama3.1:70b',
+                        model=self.llm_model,
                         messages=[{'role': 'user', 'content': instruction}],
                         stream=True
                     )
@@ -262,7 +336,7 @@ class Scripts:
             # Call the Ollama API
             try:
                 response = ollama.chat(
-                    model='llama3.1:70b',
+                    model=self.llm_model,
                     messages=[{'role': 'user', 'content': instruction}],
                     stream=True
                 )
@@ -291,7 +365,7 @@ class Scripts:
                         ollama.BASE_URL = endpoint
 
                         response = ollama.chat(
-                            model='llama3.1:70b',
+                            model=self.llm_model,
                             messages=[{'role': 'user', 'content': instruction}],
                             stream=True
                         )

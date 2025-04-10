@@ -1,11 +1,22 @@
 import streamlit as st
-from scripts import Scripts
+from scripts import Scripts, AVAILABLE_MODELS, get_available_models
 from database import Database
 import pandas as pd
 import os
+from datetime import datetime, timedelta
 
 # Initialize database
 db = Database()
+
+# Setup model refresh functionality
+if 'last_model_refresh' not in st.session_state:
+    st.session_state.last_model_refresh = datetime.now()
+    st.session_state.available_models = AVAILABLE_MODELS
+
+# Check if we need to refresh models (every 5 minutes)
+if datetime.now() - st.session_state.last_model_refresh > timedelta(minutes=5):
+    st.session_state.available_models = get_available_models()
+    st.session_state.last_model_refresh = datetime.now()
 
 # Load the combined CSV file
 combined_csv_path = os.path.join('data', 'combined_prompts_queries.csv')
@@ -14,8 +25,43 @@ df = pd.read_csv(combined_csv_path)
 # Extract unique sources
 sources = df['Source'].unique()
 
-# Source selection
-selected_source = st.selectbox(
+# Create sidebar for settings
+st.sidebar.title("Settings")
+
+# Debug option
+debug_mode = st.sidebar.checkbox("Debug Mode")
+
+# Refresh models button
+if st.sidebar.button("🔄 Refresh Models"):
+    # Create a placeholder for status in sidebar
+    refresh_status = st.sidebar.empty()
+    refresh_status.info("Refreshing models...")
+
+    # Refresh models
+    st.session_state.available_models = get_available_models()
+    st.session_state.last_model_refresh = datetime.now()
+
+    # Update status
+    refresh_status.success("Models refreshed!")
+
+# Show available models if in debug mode
+if debug_mode:
+    st.sidebar.markdown("### Debug Info")
+    st.sidebar.markdown("##### Available Models")
+    for model in st.session_state.available_models:
+        st.sidebar.markdown(f"- {model}")
+
+# Model selection in sidebar
+selected_model = st.sidebar.selectbox(
+    "Select LLM Model:",
+    st.session_state.available_models,
+    index=0 if not st.session_state.get('current_model') else
+          max(0, st.session_state.available_models.index(st.session_state.current_model)
+              if st.session_state.current_model in st.session_state.available_models else 0)
+)
+
+# Source selection in sidebar
+selected_source = st.sidebar.selectbox(
     "Select Source for SQL prompts:",
     sources,
     index=0  # Default to first source
@@ -24,12 +70,46 @@ selected_source = st.selectbox(
 # Filter data by selected source
 filtered_df = df[df['Source'] == selected_source]
 
-# Create an instance of Scripts with filtered data
-faiss_handler = Scripts(dataframe=filtered_df)
+# Create an instance of Scripts with filtered data and selected model
+faiss_handler = Scripts(dataframe=filtered_df, llm_model=selected_model)
+
+# Save model in session state to detect changes
+if 'current_model' not in st.session_state:
+    st.session_state.current_model = selected_model
+elif st.session_state.current_model != selected_model:
+    # Model has changed, update the handler
+    faiss_handler.set_llm_model(selected_model)
+    st.session_state.current_model = selected_model
 
 # Title of the app
 st.title("No More SQL")
 st.markdown("*Converts text to SQL code*")
+
+# Model info display
+st.info(f"Using model: **{selected_model}**")
+
+# Show model availability across containers
+if st.checkbox("Show model availability details"):
+    with st.expander("Model availability across containers"):
+        st.markdown("##### Model availability across containers")
+        availability_data = []
+        for i in range(6):
+            try:
+                result = os.popen(f"docker exec ollama-gpu{i} ollama list 2>/dev/null || echo 'Container not running'").read()
+                if "not running" not in result:
+                    models = []
+                    for line in result.strip().split('\n'):
+                        parts = line.split()
+                        if parts and not parts[0].startswith('NAME'):
+                            models.append(parts[0])
+                    availability_data.append((f"GPU {i}", ", ".join(models)))
+                else:
+                    availability_data.append((f"GPU {i}", "Container not running"))
+            except Exception as e:
+                availability_data.append((f"GPU {i}", f"Error: {str(e)}"))
+
+        # Display as a table
+        st.table(pd.DataFrame(availability_data, columns=["Container", "Available Models"]))
 
 # Initialize chat history
 st.session_state.messages = st.session_state.get("messages", [])

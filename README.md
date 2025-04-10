@@ -49,6 +49,18 @@ docker run -d \
 docker exec ollama ollama pull llama3.1:70b
 ```
 
+2a. If installing on 6 containers for distributing load:
+```
+for i in {0..5}; do echo -e "\nPulling llama3.1:70b on ollama-gpu$i:"; docker exec ollama-gpu$i ollama pull llama3.2:1b; done
+```
+
+2b. To see all models on each container:
+```
+for i in {0..5}; do echo -e "\nOllama GPU $i Models:"; docker exec ollama-gpu$i ollama list 2>/dev/null || echo "Container not running or command failed"; done
+```
+
+
+
 3. Start the application:
 ```bash
 sudo systemctl start no-more-sql
@@ -57,7 +69,7 @@ sudo systemctl start no-more-sql
 ## System Architecture
 
 ### Components
-- **LLM**: llama3.1:70b via Ollama
+- **LLM**: llama3.3:70b via Ollama
 - **RAG**: FAISS for semantic search
 - **Frontend**: Streamlit dashboard
 - **Storage**: SQLite for feedback
@@ -79,7 +91,7 @@ When running, the app is accessible at:
 1. Root directory: `/data/docker`
 2. Models stored in: `/data/docker/volumes/ollama/_data/models/`
 3. Current models:
-   - llama3.1:70b (42GB)
+   - llama3.3:70b (42GB)
    - deepseek-r1:1.5b (1.1GB)
 
 ### Service Management

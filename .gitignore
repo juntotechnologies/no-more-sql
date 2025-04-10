@@ -103,3 +103,4 @@ text_to_sql_*.pkl
 # Sensitive logs
 streamlit.log
 ~/.streamlit/
+.env
